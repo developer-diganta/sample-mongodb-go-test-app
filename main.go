@@ -6,12 +6,11 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 
 	"github.com/go-chi/chi"
 	"github.com/google/uuid"
-	"github.com/keploy/go-sdk/integrations/kchi"
-	"github.com/keploy/go-sdk/integrations/kmongo"
-	"github.com/keploy/go-sdk/keploy"
+	"github.com/joho/godotenv"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -19,40 +18,44 @@ import (
 )
 
 var client *mongo.Client
-var col *kmongo.Collection
-func init() {
-	// Set up MongoDB connection
-	clientOptions := options.Client().ApplyURI("mongodb://localhost:27017/test-db?retryWrites=true&w=majority")
-	var err error
+var col *mongo.Collection
 
-	client, err = mongo.Connect(context.Background(), clientOptions)
+func init() {
+	err := godotenv.Load()
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal("Error loading .env file")
+	}
+	username := os.Getenv("MONGODB_USERNAME")
+	password := os.Getenv("MONGODB_PASSWORD")
+
+	// Construct the connection string with the retrieved credentials
+	connectionString := fmt.Sprintf("mongodb+srv://%s:%s@cluster0.wyqvltm.mongodb.net/?retryWrites=true&w=majority", username, password)
+	fmt.Println(connectionString)
+	// Set up MongoDB connection
+	clientOptions := options.Client().ApplyURI(connectionString)
+
+	var mongoErr error
+	client, mongoErr = mongo.Connect(context.Background(), clientOptions)
+	if mongoErr != nil {
+		log.Fatal(mongoErr)
 	}
 
 	// Check if MongoDB is running
-	err = client.Ping(context.Background(), readpref.Primary())
-	if err != nil {
-		log.Fatal(err)
+	pingErr := client.Ping(context.Background(), readpref.Primary())
+	if pingErr != nil {
+		log.Fatal(pingErr)
 	}
 	fmt.Println("Connected to MongoDB!")
+
+	// Set the collection
+	db := client.Database("test-db")
+	col = db.Collection("people")
 }
 
 func main() {
 	// Create a new router
-		db:= client.Database("test-db")
-	col = kmongo.NewCollection(db.Collection("people"));
 	r := chi.NewRouter()
-	k := keploy.New(keploy.Config{
-				App: keploy.AppConfig{
-					Name: "my_app",
-					Port: "8080",
-				},
-				Server: keploy.ServerConfig{
-					URL: "http://localhost:6789/api",
-				},
-				})
-		r.Use(kchi.ChiMiddlewareV5(k))
+
 	// Define API endpoints
 	r.Post("/person", createPerson)
 	r.Get("/person/{id}", getPerson)
@@ -76,16 +79,15 @@ func createPerson(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Generate unique ID
-	id := uuid.New().String() 
+	id := uuid.New().String()
 
 	// Set ID in the Person struct
 	person.ID = id
 
 	// Insert person data into MongoDB
-
-	_, err = col.InsertOne(r.Context(), person)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+	_, insertErr := col.InsertOne(r.Context(), person)
+	if insertErr != nil {
+		http.Error(w, insertErr.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -99,8 +101,6 @@ func getPerson(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 
 	// Find person data in MongoDB
-
-
 	var person Person
 	err := col.FindOne(r.Context(), bson.M{"_id": id}).Decode(&person)
 	if err != nil {

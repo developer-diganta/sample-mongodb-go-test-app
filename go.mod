@@ -15,6 +15,7 @@ require (
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/google/uuid v1.3.0 // indirect
 	github.com/jhump/protoreflect v1.14.0 // indirect
+	github.com/joho/godotenv v1.5.1 // indirect
 	github.com/k0kubun/pp/v3 v3.1.0 // indirect
 	github.com/keploy/go-sdk v0.8.8 // indirect
 	github.com/klauspost/compress v1.15.9 // indirect
